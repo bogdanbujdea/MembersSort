@@ -1,7 +1,8 @@
 using Microsoft.CodeAnalysis;
+
 using System;
 
-namespace TestHelper
+namespace MembersSort.Test.Helpers
 {
     /// <summary>
     /// Location where the diagnostic appears, as determined by path, line number, and column number.
@@ -35,22 +36,22 @@ namespace TestHelper
     /// </summary>
     public struct DiagnosticResult
     {
-        private DiagnosticResultLocation[] locations;
+        private DiagnosticResultLocation[] _locations;
 
         public DiagnosticResultLocation[] Locations
         {
             get
             {
-                if (this.locations == null)
+                if (this._locations == null)
                 {
-                    this.locations = new DiagnosticResultLocation[] { };
+                    this._locations = new DiagnosticResultLocation[] { };
                 }
-                return this.locations;
+                return this._locations;
             }
 
             set
             {
-                this.locations = value;
+                this._locations = value;
             }
         }
 

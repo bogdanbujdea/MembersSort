@@ -1,10 +1,13 @@
+using MembersSort.Test.Helpers;
+
+using CodeFixVerifier = MembersSort.Test.Verifiers.CodeFixVerifier;
+
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+
 using System;
-using TestHelper;
-using MembersSort;
 
 namespace MembersSort.Test
 {
@@ -37,16 +40,19 @@ namespace MembersSort.Test
     {
         class TypeName
         {   
+            private int CounterPrivate { get; set; }
+
+            public int Counter { get; set; }
         }
     }";
             var expected = new DiagnosticResult
             {
                 Id = "MembersSort",
-                Message = String.Format("Type name '{0}' contains lowercase letters", "TypeName"),
-                Severity = DiagnosticSeverity.Warning,
+                Message = String.Format("{0} should be moved", "Counter"),
+                Severity = DiagnosticSeverity.Error,
                 Locations =
                     new[] {
-                            new DiagnosticResultLocation("Test0.cs", 11, 15)
+                            new DiagnosticResultLocation("Test0.cs", 15, 24)
                         }
             };
 
@@ -62,8 +68,11 @@ namespace MembersSort.Test
 
     namespace ConsoleApplication1
     {
-        class TYPENAME
+        class TypeName
         {   
+            public int Counter { get; set; }
+
+            private int CounterPrivate { get; set; }
         }
     }";
             VerifyCSharpFix(test, fixtest);

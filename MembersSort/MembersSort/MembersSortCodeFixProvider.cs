@@ -1,25 +1,21 @@
-using System;
-using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Composition;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Editing;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CodeActions;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.CodeAnalysis.Rename;
-using Microsoft.CodeAnalysis.Text;
+
+using System;
+using System.Linq;
+using System.Threading;
+using System.Composition;
+using System.Threading.Tasks;
+using System.Collections.Immutable;
 
 namespace MembersSort
 {
     [ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(MembersSortCodeFixProvider)), Shared]
     public class MembersSortCodeFixProvider : CodeFixProvider
     {
-        private const string title = "Make uppercase";
-
         public sealed override ImmutableArray<string> FixableDiagnosticIds
         {
             get { return ImmutableArray.Create(MembersSortAnalyzer.DiagnosticId); }
@@ -30,44 +26,46 @@ namespace MembersSort
             // See https://github.com/dotnet/roslyn/blob/master/docs/analyzers/FixAllProvider.md for more information on Fix All Providers
             return WellKnownFixAllProviders.BatchFixer;
         }
-
+        
         public sealed override async Task RegisterCodeFixesAsync(CodeFixContext context)
         {
-            var root = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
+            foreach (var diagnostic in context.Diagnostics.Where(d => FixableDiagnosticIds.Contains(d.Id)))
+            {
+                context.RegisterCodeFix(CodeAction.Create("Arrange members by accessibility",
+                    token => GetTransformedDocumentAsync(context.Document, diagnostic, token)), diagnostic);
+            }
 
-            // TODO: Replace the following code with your own analysis, generating a CodeAction for each fix to suggest
-            var diagnostic = context.Diagnostics.First();
-            var diagnosticSpan = diagnostic.Location.SourceSpan;
-
-            // Find the type declaration identified by the diagnostic.
-            var declaration = root.FindToken(diagnosticSpan.Start).Parent.AncestorsAndSelf().OfType<TypeDeclarationSyntax>().First();
-
-            // Register a code action that will invoke the fix.
-            context.RegisterCodeFix(
-                CodeAction.Create(
-                    title: title,
-                    createChangedSolution: c => MakeUppercaseAsync(context.Document, declaration, c), 
-                    equivalenceKey: title),
-                diagnostic);
+            await Task.FromResult(Task.CompletedTask);
         }
 
-        private async Task<Solution> MakeUppercaseAsync(Document document, TypeDeclarationSyntax typeDecl, CancellationToken cancellationToken)
+
+        private static async Task<Document> GetTransformedDocumentAsync(Document document, Diagnostic diagnostic, CancellationToken cancellationToken)
         {
-            // Compute new uppercase name.
-            var identifierToken = typeDecl.Identifier;
-            var newName = identifierToken.Text.ToUpperInvariant();
-
-            // Get the symbol representing the type to be renamed.
-            var semanticModel = await document.GetSemanticModelAsync(cancellationToken);
-            var typeSymbol = semanticModel.GetDeclaredSymbol(typeDecl, cancellationToken);
-
-            // Produce a new solution that has all references to that type renamed, including the declaration.
-            var originalSolution = document.Project.Solution;
-            var optionSet = originalSolution.Workspace.Options;
-            var newSolution = await Renamer.RenameSymbolAsync(document.Project.Solution, typeSymbol, newName, optionSet, cancellationToken).ConfigureAwait(false);
-
-            // Return the new solution with the now-uppercase type name.
-            return newSolution;
+            try
+            {
+                SyntaxNode root = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
+                var semanticModel = await document.GetSemanticModelAsync(cancellationToken);
+                var members = root.DescendantNodes().Where(r =>
+                    r.IsKind(SyntaxKind.PropertyDeclaration) || r.IsKind(SyntaxKind.MethodDeclaration)).ToList();
+                var sortedMembers = members.OrderByDescending(m => RetrieveAccessibility(m, semanticModel)).ToList();
+                var docEditor = await DocumentEditor.CreateAsync(document, cancellationToken);
+                for (int i = 0; i < members.Count; i++)
+                {
+                    docEditor.ReplaceNode(members[i], sortedMembers[i]);
+                }
+                return docEditor.GetChangedDocument();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                return document;
+            }
+        }
+        private static Accessibility RetrieveAccessibility(SyntaxNode m, SemanticModel semanticModel)
+        {
+            var model = semanticModel.Compilation.GetSemanticModel(m.SyntaxTree);
+            var accessibility = model.GetDeclaredSymbol(m).DeclaredAccessibility;
+            return accessibility;
         }
     }
 }

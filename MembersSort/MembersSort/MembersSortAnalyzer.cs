@@ -1,9 +1,10 @@
-using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Linq;
-using System.Net.Http.Headers;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
+
+using System.Linq;
+using System.Net.Http.Headers;
+using System.Collections.Generic;
+using System.Collections.Immutable;
 
 namespace MembersSort
 {
@@ -19,9 +20,9 @@ namespace MembersSort
         private static readonly LocalizableString Description = new LocalizableResourceString(nameof(Resources.AnalyzerDescription), Resources.ResourceManager, typeof(Resources));
         private const string Category = "Naming";
 
-        private static DiagnosticDescriptor Rule = new DiagnosticDescriptor(DiagnosticId, Title, MessageFormat, Category, DiagnosticSeverity.Warning, isEnabledByDefault: true, description: Description);
+        private static DiagnosticDescriptor _rule = new DiagnosticDescriptor(DiagnosticId, Title, MessageFormat, Category, DiagnosticSeverity.Error, isEnabledByDefault: true, description: Description);
 
-        public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get { return ImmutableArray.Create(Rule); } }
+        public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get { return ImmutableArray.Create(_rule); } }
 
         public override void Initialize(AnalysisContext context)
         {
@@ -37,7 +38,7 @@ namespace MembersSort
             var unorderedMember = GetUnorderedMember(members); //then find the first member that is out of order
             if (unorderedMember != null)
             {
-                var rule = new DiagnosticDescriptor(DiagnosticId, Title, $"Move {unorderedMember.Name} lower in the file", Category,
+                var rule = new DiagnosticDescriptor(DiagnosticId, Title, $"{unorderedMember.Name} should be moved", Category,
                     DiagnosticSeverity.Error, isEnabledByDefault: true, description: Description);
                 //now we're creating a rule that tells the user to move the member lower in the file
                 var diagnostic = Diagnostic.Create(rule, unorderedMember.Locations[0], classSymbol);
